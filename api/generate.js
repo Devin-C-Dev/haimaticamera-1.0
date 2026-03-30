@@ -1,29 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const dotenv = require('dotenv');
+// Vercel Serverless Function for Coze API
+// 这个函数在 Vercel 上运行，环境变量从 Vercel Dashboard 中安全读取
 
-dotenv.config({ path: path.join(__dirname, '.env.local'), quiet: true });
-dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
+export default async function handler(req, res) {
+  // 只允许 POST 请求
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed'
+    });
+  }
 
-const app = express();
-const PORT = Number(process.env.PORT || 3001);
-const STATIC_DIR = __dirname;
-
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(STATIC_DIR));
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    port: PORT,
-    message: '拍立得相机服务运行中'
-  });
-});
-
-// Coze API 代理路由
-app.post('/api/generate', async (req, res) => {
   try {
     const { image } = req.body;
 
@@ -34,8 +20,9 @@ app.post('/api/generate', async (req, res) => {
       });
     }
 
-    // 从环境变量获取 Coze API Token
+    // 从 Vercel 环境变量获取 Coze API Token
     const cozeApiToken = process.env.COZE_API_TOKEN;
+
     if (!cozeApiToken) {
       console.error('未设置 COZE_API_TOKEN 环境变量');
       return res.status(500).json({
@@ -74,24 +61,19 @@ app.post('/api/generate', async (req, res) => {
     console.log('📦 Coze API 返回数据:', JSON.stringify(cozeResult, null, 2));
 
     // 返回成功响应
-    // 提取 Coze API 生成的图片
-    let generatedImageUrl = image; // 默认使用原始图片
+    let generatedImageUrl = image;
 
     // 根据实际的 API 返回格式提取图片
     if (cozeResult.generated_photo && cozeResult.generated_photo.url) {
-      // 海马体证件照 API 格式: { generated_photo: { url: "..." } }
       generatedImageUrl = cozeResult.generated_photo.url;
       console.log('✅ 找到 Coze 生成的海马体证件照 URL');
     } else if (cozeResult.data && cozeResult.data.generated_photo && cozeResult.data.generated_photo.url) {
-      // 海马体证件照 API 格式（嵌套）: { data: { generated_photo: { url: "..." } } }
       generatedImageUrl = cozeResult.data.generated_photo.url;
       console.log('✅ 找到 Coze 生成的海马体证件照 URL (嵌套格式)');
     } else if (cozeResult.output_photo && cozeResult.output_photo.url) {
-      // Coze API 直接返回格式: { output_photo: { url: "..." } }
       generatedImageUrl = cozeResult.output_photo.url;
       console.log('✅ 找到 Coze 生成的图片 URL (直接格式)');
     } else if (cozeResult.data && cozeResult.data.output_photo && cozeResult.data.output_photo.url) {
-      // Coze API 返回格式: { data: { output_photo: { url: "..." } } }
       generatedImageUrl = cozeResult.data.output_photo.url;
       console.log('✅ 找到 Coze 生成的图片 URL (嵌套格式)');
     } else if (cozeResult.data && cozeResult.data.output) {
@@ -119,14 +101,4 @@ app.post('/api/generate', async (req, res) => {
       error: error.message || '生成失败'
     });
   }
-});
-
-app.listen(PORT, () => {
-  console.log('');
-  console.log('=================================');
-  console.log('拍立得相机服务运行中');
-  console.log(`Local URL: http://localhost:${PORT}`);
-  console.log(`Health URL: http://localhost:${PORT}/api/health`);
-  console.log('=================================');
-  console.log('');
-});
+}
